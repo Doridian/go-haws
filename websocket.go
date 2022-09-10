@@ -3,6 +3,7 @@ package haws
 import (
 	"errors"
 	"log"
+	"math"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -41,18 +42,20 @@ func (c *Client) openConditional(checkIfRunning bool) error {
 	return nil
 }
 
+func (c *Client) authError() {
+	c.handleError(errors.New("auth timeout"))
+}
+
 func (c *Client) WaitAuth() error {
 	c.connLock.Lock()
 	ch := c.authWaitChan
-
 	c.connLock.Unlock()
 
-	select {
-	case <-c.authWaitTimer.C:
-		return c.handleError(errors.New("auth timeout"))
-	case <-ch:
-		return nil
+	<-ch
+	if !c.authOk {
+		return errors.New("auth failure")
 	}
+	return nil
 }
 
 func (c *Client) Open() error {
@@ -68,7 +71,7 @@ func (c *Client) authWaitDone() {
 }
 
 func (c *Client) closeNoLock() {
-	c.authWaitTimer.Stop()
+	c.authWaitTimer.Reset(time.Duration(math.MaxInt64))
 
 	c.running = false
 	if c.conn != nil {

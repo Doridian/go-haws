@@ -1,6 +1,7 @@
 package haws
 
 import (
+	"math"
 	"net/http"
 	"sync"
 	"time"
@@ -27,7 +28,7 @@ type Client struct {
 
 	authWaitChan  chan bool
 	authOk        bool
-	authWaitTimer time.Timer
+	authWaitTimer *time.Timer
 	authTimeout   time.Duration
 
 	respHandlerLock sync.Mutex
@@ -41,7 +42,7 @@ type Client struct {
 }
 
 func NewClient(url string, token string, reconnectTime time.Duration) *Client {
-	return &Client{
+	cl := &Client{
 		url:   url,
 		token: token,
 		hdr:   http.Header{},
@@ -54,4 +55,8 @@ func NewClient(url string, token string, reconnectTime time.Duration) *Client {
 		reconnectTime:  reconnectTime,
 		allowReconnect: false,
 	}
+
+	cl.authWaitTimer = time.AfterFunc(time.Duration(math.MaxInt64), cl.authError)
+
+	return cl
 }
