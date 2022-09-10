@@ -1,6 +1,7 @@
 package haws
 
 import (
+	"errors"
 	"log"
 	"time"
 
@@ -17,10 +18,15 @@ func (c *Client) openConditional(checkIfRunning bool) error {
 
 	c.closeNoLock()
 
-	ws, _, err := websocket.DefaultDialer.Dial(c.url, c.hdr.Clone())
+	dialer := &websocket.Dialer{
+		HandshakeTimeout: time.Second * 5,
+	}
+	ws, _, err := dialer.Dial(c.url, c.hdr.Clone())
 	if err != nil {
 		return err
 	}
+
+	c.authWaitTimer.Reset(c.authTimeout)
 
 	if c.authWaitChan == nil {
 		c.authWaitChan = make(chan bool)
@@ -35,12 +41,18 @@ func (c *Client) openConditional(checkIfRunning bool) error {
 	return nil
 }
 
-func (c *Client) WaitAuth() {
+func (c *Client) WaitAuth() error {
 	c.connLock.Lock()
 	ch := c.authWaitChan
+
 	c.connLock.Unlock()
 
-	<-ch
+	select {
+	case <-c.authWaitTimer.C:
+		return c.handleError(errors.New("auth timeout"))
+	case <-ch:
+		return nil
+	}
 }
 
 func (c *Client) Open() error {
@@ -56,6 +68,8 @@ func (c *Client) authWaitDone() {
 }
 
 func (c *Client) closeNoLock() {
+	c.authWaitTimer.Stop()
+
 	c.running = false
 	if c.conn != nil {
 		c.conn.Close()
