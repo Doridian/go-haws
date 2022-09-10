@@ -32,15 +32,17 @@ type Client struct {
 	eventHandlerLock sync.Mutex
 	eventHandlers    map[string]EventHandler
 
-	reconnectTime time.Duration
+	reconnectTime  time.Duration
+	allowReconnect bool
 }
 
 func NewClient(url string, token string, reconnectTime time.Duration) *Client {
 	return &Client{
-		url:           url,
-		token:         token,
-		hdr:           http.Header{},
-		respHandlers:  make(map[uint64]*respHandler),
-		reconnectTime: reconnectTime,
+		url:            url,
+		token:          token,
+		hdr:            http.Header{},
+		respHandlers:   make(map[uint64]*respHandler),
+		reconnectTime:  reconnectTime,
+		allowReconnect: true,
 	}
 }

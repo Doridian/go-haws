@@ -2,6 +2,10 @@ package haws
 
 import "encoding/json"
 
+const (
+	EventStateChanged string = "state_changed"
+)
+
 type EventData struct {
 	Data      json.RawMessage `json:"data"`
 	EventType string          `json:"event_type"`
@@ -38,6 +42,22 @@ func (c *Client) AddEventHandler(eventType string, handler EventHandler) error {
 		}
 	}
 	c.eventHandlers[eventType] = handler
+
+	return nil
+}
+
+func (c *Client) resubscribe() error {
+	defer c.readerWait.Done()
+
+	c.eventHandlerLock.Lock()
+	defer c.eventHandlerLock.Unlock()
+
+	for eventType := range c.eventHandlers {
+		err := c.subscribe(eventType)
+		if err != nil {
+			return c.handleError(err)
+		}
+	}
 
 	return nil
 }

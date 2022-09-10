@@ -21,9 +21,14 @@ func (c *Client) openConditional(checkIfRunning bool) error {
 		return err
 	}
 
+	c.allowReconnect = true
 	c.running = true
+
 	c.readerWait.Add(1)
 	go c.reader()
+
+	c.readerWait.Add(1)
+	go c.resubscribe()
 
 	c.conn = ws
 	return nil
@@ -46,6 +51,11 @@ func (c *Client) closeNoLock() {
 }
 
 func (c *Client) Close() error {
+	c.allowReconnect = false
+	return c.close()
+}
+
+func (c *Client) close() error {
 	c.connLock.Lock()
 	defer c.connLock.Unlock()
 
@@ -67,8 +77,8 @@ func (c *Client) handleErrorSync(err error) {
 }
 
 func (c *Client) timedReconnect() {
-	c.Close()
-	if c.reconnectTime <= 0 {
+	c.close()
+	if c.reconnectTime <= 0 || !c.allowReconnect {
 		return
 	}
 	time.Sleep(c.reconnectTime)

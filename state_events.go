@@ -28,7 +28,7 @@ func NewStateChangeEventHandler(client *Client) (*StateChangeEventHandler, error
 		eventHandlers: make(map[string]StateChangeHandler),
 		client:        client,
 	}
-	return res, client.AddEventHandler("state_changed", res)
+	return res, client.AddEventHandler(EventStateChanged, res)
 }
 
 func (c *StateChangeEventHandler) AddHandler(entityID string, handler StateChangeHandler) {
