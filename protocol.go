@@ -7,9 +7,32 @@ import (
 	"sync/atomic"
 )
 
+type ErrPriorToAuth struct {
+	error
+}
+
 type wsCmd struct {
 	ID   uint64 `json:"id,omitempty"`
 	Type string `json:"type"`
+}
+
+type wsIDCmd interface {
+	SetID(id uint64)
+	GetID() uint64
+
+	GetType() string
+}
+
+func (c *wsCmd) GetID() uint64 {
+	return c.ID
+}
+
+func (c *wsCmd) GetType() string {
+	return c.Type
+}
+
+func (c *wsCmd) SetID(id uint64) {
+	c.ID = id
 }
 
 type wsErr struct {
@@ -69,7 +92,12 @@ func (c *Client) reader() {
 				AccessToken: c.token,
 			})
 		case "auth_ok":
+			c.connLock.Lock()
 			c.authOk = true
+			c.authWaitDone()
+			c.connLock.Unlock()
+
+			go c.resubscribe()
 		}
 
 		if err != nil {
@@ -79,11 +107,11 @@ func (c *Client) reader() {
 	}
 }
 
-func (c *Client) sendNoWait(cmd interface{}) error {
+func (c *Client) sendNoWait(cmd wsIDCmd) error {
 	return c.send(cmd, nil, nil)
 }
 
-func (c *Client) sendAndWait(cmd interface{}, result interface{}) error {
+func (c *Client) sendAndWait(cmd wsIDCmd, result interface{}) error {
 	errChan := make(chan error)
 	defer close(errChan)
 
@@ -95,12 +123,27 @@ func (c *Client) sendAndWait(cmd interface{}, result interface{}) error {
 	return <-errChan
 }
 
-func (c *Client) send(cmd interface{}, result interface{}, errChan chan error) error {
-	vWithID, ok := cmd.(*wsCmd)
-	if ok {
-		vWithID.ID = atomic.AddUint64(&c.lastEventID, 1)
+func (c *Client) send(cmd wsIDCmd, result interface{}, errChan chan error) error {
+	id := cmd.GetID()
+	cmdType := cmd.GetType()
+
+	cmdIsAuth := cmdType == "auth"
+
+	if !cmdIsAuth {
+		id = atomic.AddUint64(&c.lastEventID, 1)
+		cmd.SetID(id)
 	}
+
+	if !c.authOk && !cmdIsAuth {
+		return &ErrPriorToAuth{
+			error: fmt.Errorf("tried to send command %s prior to auth", cmd.GetType()),
+		}
+	}
+
+	c.connLock.Lock()
 	err := c.conn.WriteJSON(cmd)
+	c.connLock.Unlock()
+
 	if err != nil {
 		err = c.handleError(err)
 		return err
@@ -108,7 +151,7 @@ func (c *Client) send(cmd interface{}, result interface{}, errChan chan error) e
 
 	if errChan != nil {
 		c.respHandlerLock.Lock()
-		c.respHandlers[vWithID.ID] = &respHandler{
+		c.respHandlers[id] = &respHandler{
 			errChan: errChan,
 			out:     result,
 		}

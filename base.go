@@ -24,7 +24,9 @@ type Client struct {
 	readerWait sync.WaitGroup
 	connLock   sync.Mutex
 	conn       *websocket.Conn
-	authOk     bool
+
+	authWaitChan chan bool
+	authOk       bool
 
 	respHandlerLock sync.Mutex
 	respHandlers    map[uint64]*respHandler
@@ -38,10 +40,13 @@ type Client struct {
 
 func NewClient(url string, token string, reconnectTime time.Duration) *Client {
 	return &Client{
-		url:            url,
-		token:          token,
-		hdr:            http.Header{},
-		respHandlers:   make(map[uint64]*respHandler),
+		url:   url,
+		token: token,
+		hdr:   http.Header{},
+
+		respHandlers:  make(map[uint64]*respHandler),
+		eventHandlers: make(map[string]EventHandler),
+
 		reconnectTime:  reconnectTime,
 		allowReconnect: true,
 	}

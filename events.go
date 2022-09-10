@@ -1,6 +1,8 @@
 package haws
 
-import "encoding/json"
+import (
+	"encoding/json"
+)
 
 const (
 	EventStateChanged string = "state_changed"
@@ -32,23 +34,25 @@ func (c *Client) subscribe(eventType string) error {
 
 func (c *Client) AddEventHandler(eventType string, handler EventHandler) error {
 	c.eventHandlerLock.Lock()
-	defer c.eventHandlerLock.Unlock()
+	oldHandler := c.eventHandlers[eventType]
+	c.eventHandlers[eventType] = handler
+	c.eventHandlerLock.Unlock()
 
-	hdl := c.eventHandlers[eventType]
-	if hdl == nil {
+	if !c.authOk {
+		return nil
+	}
+
+	if oldHandler == nil {
 		err := c.subscribe(eventType)
 		if err != nil {
 			return err
 		}
 	}
-	c.eventHandlers[eventType] = handler
 
 	return nil
 }
 
 func (c *Client) resubscribe() error {
-	defer c.readerWait.Done()
-
 	c.eventHandlerLock.Lock()
 	defer c.eventHandlerLock.Unlock()
 

@@ -15,38 +15,49 @@ func (c *Client) openConditional(checkIfRunning bool) error {
 		return nil
 	}
 
-	dialer := websocket.Dialer{}
-	ws, _, err := dialer.Dial(c.url, c.hdr.Clone())
+	c.closeNoLock()
+
+	ws, _, err := websocket.DefaultDialer.Dial(c.url, c.hdr.Clone())
 	if err != nil {
 		return err
 	}
 
+	c.authWaitChan = make(chan bool)
 	c.allowReconnect = true
 	c.running = true
+	c.conn = ws
 
 	c.readerWait.Add(1)
 	go c.reader()
 
-	c.readerWait.Add(1)
-	go c.resubscribe()
-
-	c.conn = ws
 	return nil
+}
+
+func (c *Client) WaitAuth() {
+	<-c.authWaitChan
 }
 
 func (c *Client) Open() error {
 	return c.openConditional(false)
 }
 
+func (c *Client) authWaitDone() {
+	if c.authWaitChan == nil {
+		return
+	}
+	close(c.authWaitChan)
+}
+
 func (c *Client) closeNoLock() {
 	c.running = false
 	if c.conn != nil {
 		c.conn.Close()
-
 	}
-	c.readerWait.Wait()
 
 	c.authOk = false
+	c.authWaitDone()
+
+	c.readerWait.Wait()
 	c.conn = nil
 }
 
@@ -58,7 +69,6 @@ func (c *Client) Close() error {
 func (c *Client) close() error {
 	c.connLock.Lock()
 	defer c.connLock.Unlock()
-
 	c.closeNoLock()
 	return nil
 }
@@ -67,13 +77,9 @@ func (c *Client) handleError(err error) error {
 	if err == nil {
 		return nil
 	}
-	go c.handleErrorSync(err)
-	return err
-}
-
-func (c *Client) handleErrorSync(err error) {
 	log.Printf("Error in WS: %v", err)
 	go c.timedReconnect()
+	return err
 }
 
 func (c *Client) timedReconnect() {
