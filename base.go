@@ -3,6 +3,7 @@ package haws
 import (
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -30,13 +31,16 @@ type Client struct {
 
 	eventHandlerLock sync.Mutex
 	eventHandlers    map[string]EventHandler
+
+	reconnectTime time.Duration
 }
 
-func NewClient(url string, token string) *Client {
+func NewClient(url string, token string, reconnectTime time.Duration) *Client {
 	return &Client{
-		url:          url,
-		token:        token,
-		hdr:          http.Header{},
-		respHandlers: make(map[uint64]*respHandler),
+		url:           url,
+		token:         token,
+		hdr:           http.Header{},
+		respHandlers:  make(map[uint64]*respHandler),
+		reconnectTime: reconnectTime,
 	}
 }

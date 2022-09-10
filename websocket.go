@@ -2,15 +2,18 @@ package haws
 
 import (
 	"log"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
 
-func (c *Client) Open() error {
+func (c *Client) openConditional(checkIfRunning bool) error {
 	c.connLock.Lock()
 	defer c.connLock.Unlock()
 
-	c.closeNoLock()
+	if checkIfRunning && c.running {
+		return nil
+	}
 
 	dialer := websocket.Dialer{}
 	ws, _, err := dialer.Dial(c.url, c.hdr.Clone())
@@ -24,6 +27,10 @@ func (c *Client) Open() error {
 
 	c.conn = ws
 	return nil
+}
+
+func (c *Client) Open() error {
+	return c.openConditional(false)
 }
 
 func (c *Client) closeNoLock() {
@@ -56,6 +63,14 @@ func (c *Client) handleError(err error) error {
 
 func (c *Client) handleErrorSync(err error) {
 	log.Printf("Error in WS: %v", err)
+	go c.timedReconnect()
+}
+
+func (c *Client) timedReconnect() {
 	c.Close()
-	// TODO: Reconnect?
+	if c.reconnectTime <= 0 {
+		return
+	}
+	time.Sleep(c.reconnectTime)
+	c.openConditional(true)
 }
