@@ -63,6 +63,7 @@ func (c *Client) Open() error {
 }
 
 func (c *Client) authWaitDone() {
+	c.authWaitTimer.Reset(time.Duration(math.MaxInt64))
 	if c.authWaitChan == nil {
 		return
 	}
