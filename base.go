@@ -48,6 +48,6 @@ func NewClient(url string, token string, reconnectTime time.Duration) *Client {
 		eventHandlers: make(map[string]EventHandler),
 
 		reconnectTime:  reconnectTime,
-		allowReconnect: true,
+		allowReconnect: false,
 	}
 }

@@ -22,8 +22,10 @@ func (c *Client) openConditional(checkIfRunning bool) error {
 		return err
 	}
 
-	c.authWaitChan = make(chan bool)
-	c.allowReconnect = true
+	if c.authWaitChan == nil {
+		c.authWaitChan = make(chan bool)
+	}
+	c.allowReconnect = c.reconnectTime > 0
 	c.running = true
 	c.conn = ws
 
@@ -34,7 +36,11 @@ func (c *Client) openConditional(checkIfRunning bool) error {
 }
 
 func (c *Client) WaitAuth() {
-	<-c.authWaitChan
+	c.connLock.Lock()
+	ch := c.authWaitChan
+	c.connLock.Unlock()
+
+	<-ch
 }
 
 func (c *Client) Open() error {
@@ -46,6 +52,7 @@ func (c *Client) authWaitDone() {
 		return
 	}
 	close(c.authWaitChan)
+	c.authWaitChan = nil
 }
 
 func (c *Client) closeNoLock() {
@@ -55,7 +62,9 @@ func (c *Client) closeNoLock() {
 	}
 
 	c.authOk = false
-	c.authWaitDone()
+	if !c.allowReconnect {
+		c.authWaitDone()
+	}
 
 	c.readerWait.Wait()
 	c.conn = nil
@@ -84,7 +93,7 @@ func (c *Client) handleError(err error) error {
 
 func (c *Client) timedReconnect() {
 	c.close()
-	if c.reconnectTime <= 0 || !c.allowReconnect {
+	if !c.allowReconnect {
 		return
 	}
 	time.Sleep(c.reconnectTime)
