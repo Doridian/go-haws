@@ -1,7 +1,6 @@
 package haws
 
 import (
-	"math"
 	"net/http"
 	"sync"
 	"time"
@@ -26,7 +25,7 @@ type Client struct {
 	connLock   sync.Mutex
 	conn       *websocket.Conn
 
-	authWaitChan  chan bool
+	authDone      bool
 	authOk        bool
 	authWaitTimer *time.Timer
 	authTimeout   time.Duration
@@ -55,8 +54,6 @@ func NewClient(url string, token string, reconnectTime time.Duration) *Client {
 		reconnectTime:  reconnectTime,
 		allowReconnect: false,
 	}
-
-	cl.authWaitTimer = time.AfterFunc(time.Duration(math.MaxInt64), cl.authError)
 
 	return cl
 }

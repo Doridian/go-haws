@@ -27,11 +27,9 @@ func (c *Client) openConditional(checkIfRunning bool) error {
 		return err
 	}
 
-	c.authWaitTimer.Reset(c.authTimeout)
+	c.authWaitTimer = time.AfterFunc(time.Duration(math.MaxInt64), c.authError)
 
-	if c.authWaitChan == nil {
-		c.authWaitChan = make(chan bool)
-	}
+	c.authDone = false
 	c.allowReconnect = c.reconnectTime > 0
 	c.running = true
 	c.conn = ws
@@ -47,11 +45,16 @@ func (c *Client) authError() {
 }
 
 func (c *Client) WaitAuth() error {
-	c.connLock.Lock()
-	ch := c.authWaitChan
-	c.connLock.Unlock()
+	for {
+		c.connLock.Lock()
+		authDone := c.authDone
+		c.connLock.Unlock()
+		if authDone {
+			break
+		}
+		time.Sleep(time.Millisecond * 100)
+	}
 
-	<-ch
 	if !c.authOk {
 		return errors.New("auth failure")
 	}
@@ -62,17 +65,22 @@ func (c *Client) Open() error {
 	return c.openConditional(false)
 }
 
-func (c *Client) authWaitDone() {
-	c.authWaitTimer.Reset(time.Duration(math.MaxInt64))
-	if c.authWaitChan == nil {
+func (c *Client) stopAuthWaitTimer() {
+	if c.authWaitTimer == nil {
 		return
 	}
-	close(c.authWaitChan)
-	c.authWaitChan = nil
+	c.authWaitTimer.Stop()
+	c.authWaitTimer = nil
+}
+
+func (c *Client) authWaitDone() {
+	c.stopAuthWaitTimer()
+
+	c.authDone = true
 }
 
 func (c *Client) closeNoLock() {
-	c.authWaitTimer.Reset(time.Duration(math.MaxInt64))
+	c.stopAuthWaitTimer()
 
 	c.running = false
 	if c.conn != nil {
@@ -81,7 +89,7 @@ func (c *Client) closeNoLock() {
 
 	c.authOk = false
 	if !c.allowReconnect {
-		c.authWaitDone()
+		c.authDone = true
 	}
 
 	c.readerWait.Wait()
