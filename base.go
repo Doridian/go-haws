@@ -35,7 +35,7 @@ type Client struct {
 
 	eventHandlerLock sync.Mutex
 	eventHandlers    map[string]EventHandler
-	reconnectHandler func()
+	connectHandler   func()
 
 	reconnectTime  time.Duration
 	allowReconnect bool
@@ -47,8 +47,8 @@ func NewClient(url string, token string, reconnectHandler func(), reconnectTime 
 		token: token,
 		hdr:   http.Header{},
 
-		authTimeout:      time.Second * 5,
-		reconnectHandler: reconnectHandler,
+		authTimeout:    time.Second * 5,
+		connectHandler: reconnectHandler,
 
 		respHandlers:  make(map[uint64]*respHandler),
 		eventHandlers: make(map[string]EventHandler),
