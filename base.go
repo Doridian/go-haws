@@ -35,18 +35,20 @@ type Client struct {
 
 	eventHandlerLock sync.Mutex
 	eventHandlers    map[string]EventHandler
+	reconnectHandler func()
 
 	reconnectTime  time.Duration
 	allowReconnect bool
 }
 
-func NewClient(url string, token string, reconnectTime time.Duration) *Client {
+func NewClient(url string, token string, reconnectHandler func(), reconnectTime time.Duration) *Client {
 	cl := &Client{
 		url:   url,
 		token: token,
 		hdr:   http.Header{},
 
-		authTimeout: time.Second * 5,
+		authTimeout:      time.Second * 5,
+		reconnectHandler: reconnectHandler,
 
 		respHandlers:  make(map[uint64]*respHandler),
 		eventHandlers: make(map[string]EventHandler),

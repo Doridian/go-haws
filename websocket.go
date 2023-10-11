@@ -37,6 +37,8 @@ func (c *Client) openConditional(checkIfRunning bool) error {
 	c.readerWait.Add(1)
 	go c.reader()
 
+	c.reconnectHandler()
+
 	return nil
 }
 
