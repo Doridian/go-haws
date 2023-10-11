@@ -125,5 +125,8 @@ func (c *Client) timedReconnect() {
 		return
 	}
 	time.Sleep(c.reconnectTime)
-	c.openConditional(true)
+	err := c.openConditional(true)
+	if err != nil {
+		c.handleError(err)
+	}
 }
