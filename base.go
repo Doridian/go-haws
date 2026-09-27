@@ -8,12 +8,12 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type ConnectionState int
+type ConnectionState string
 
 const (
-	STATE_DISCONNECTED ConnectionState = iota
-	STATE_CONNECTING   ConnectionState = iota
-	STATE_CONNECTED    ConnectionState = iota
+	STATE_DISCONNECTED ConnectionState = "disconnected"
+	STATE_CONNECTING   ConnectionState = "connecting"
+	STATE_CONNECTED    ConnectionState = "connected"
 )
 
 type respHandler struct {
