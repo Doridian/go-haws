@@ -19,6 +19,8 @@ func (c *Client) openConditional(checkIfRunning bool) error {
 
 	c.closeNoLock()
 
+	go c.stateHandler(STATE_CONNECTING)
+
 	dialer := &websocket.Dialer{
 		HandshakeTimeout: time.Second * 5,
 	}
@@ -37,13 +39,13 @@ func (c *Client) openConditional(checkIfRunning bool) error {
 	c.readerWait.Add(1)
 	go c.reader()
 
-	go c.connectHandler()
+	go c.stateHandler(STATE_CONNECTED)
 
 	return nil
 }
 
 func (c *Client) authError() {
-	c.handleError(errors.New("auth timeout"))
+	_ = c.handleError(errors.New("auth timeout"))
 }
 
 func (c *Client) WaitAuth() error {
@@ -86,7 +88,7 @@ func (c *Client) closeNoLock() {
 
 	c.running = false
 	if c.conn != nil {
-		c.conn.Close()
+		_ = c.conn.Close()
 	}
 
 	c.authOk = false
@@ -96,6 +98,8 @@ func (c *Client) closeNoLock() {
 
 	c.readerWait.Wait()
 	c.conn = nil
+
+	go c.stateHandler(STATE_DISCONNECTED)
 }
 
 func (c *Client) Close() error {
@@ -120,13 +124,13 @@ func (c *Client) handleError(err error) error {
 }
 
 func (c *Client) timedReconnect() {
-	c.close()
+	_ = c.close()
 	if !c.allowReconnect {
 		return
 	}
 	time.Sleep(c.reconnectTime)
 	err := c.openConditional(true)
 	if err != nil {
-		c.handleError(err)
+		_ = c.handleError(err)
 	}
 }

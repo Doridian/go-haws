@@ -85,7 +85,7 @@ func (c *Client) reader() {
 		case "event":
 			c.onEvent(msg.Event)
 		case "auth_required":
-			c.sendNoWait(&wsCmdAuth{
+			_ = c.sendNoWait(&wsCmdAuth{
 				wsCmd: wsCmd{
 					Type: "auth",
 				},
@@ -97,11 +97,13 @@ func (c *Client) reader() {
 			c.authWaitDone()
 			c.connLock.Unlock()
 
-			go c.resubscribe()
+			go func() {
+				_ = c.resubscribe()
+			}()
 		}
 
 		if err != nil {
-			c.handleError(err)
+			_ = c.handleError(err)
 			return
 		}
 	}

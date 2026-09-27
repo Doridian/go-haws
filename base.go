@@ -8,6 +8,14 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+type ConnectionState int
+
+const (
+	STATE_DISCONNECTED ConnectionState = iota
+	STATE_CONNECTING   ConnectionState = iota
+	STATE_CONNECTED    ConnectionState = iota
+)
+
 type respHandler struct {
 	errChan chan error
 	out     interface{}
@@ -25,6 +33,8 @@ type Client struct {
 	connLock   sync.Mutex
 	conn       *websocket.Conn
 
+	state ConnectionState
+
 	authDone      bool
 	authOk        bool
 	authWaitTimer *time.Timer
@@ -35,27 +45,33 @@ type Client struct {
 
 	eventHandlerLock sync.Mutex
 	eventHandlers    map[string]EventHandler
-	connectHandler   func()
+	stateHandler     func(state ConnectionState)
 
 	reconnectTime  time.Duration
 	allowReconnect bool
 }
 
-func NewClient(url string, token string, reconnectHandler func(), reconnectTime time.Duration) *Client {
+func NewClient(url string, token string, stateHandler func(state ConnectionState), reconnectTime time.Duration) *Client {
 	cl := &Client{
 		url:   url,
 		token: token,
 		hdr:   http.Header{},
 
-		authTimeout:    time.Second * 5,
-		connectHandler: reconnectHandler,
+		authTimeout:  time.Second * 5,
+		stateHandler: stateHandler,
 
 		respHandlers:  make(map[uint64]*respHandler),
 		eventHandlers: make(map[string]EventHandler),
 
 		reconnectTime:  reconnectTime,
 		allowReconnect: false,
+
+		state: STATE_DISCONNECTED,
 	}
 
 	return cl
+}
+
+func (c *Client) GetState() ConnectionState {
+	return c.state
 }
